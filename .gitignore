@@ -1,17 +1,11 @@
-# 依赖
-node_modules/
-package-lock.json
-
-# 测试产物：每次跑测试都会重新生成，不入库（避免二进制 diff 噪声）
-test/artifacts/
-test/.tmp-profile/
-test/.tmp-profile-local/
-test/.tmp-ext/
-test/.tmp-*
-*.log
-
 # 系统 / 编辑器
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
+*.log
+
+# 打包产物
+*.zip
+*.crx
+*.pem
