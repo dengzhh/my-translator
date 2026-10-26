@@ -1,18 +1,20 @@
-# 我的翻译（Quick Translate）
+# 我的翻译（My Translator）
 
 浏览器翻译插件（Manifest V3）。选中网页文字 → 鼠标右上角弹出浮窗 → 点一下就在原地看到译文。
 翻译走你自己的 API Key，不经过任何中间服务器。
+
+> GitHub: <https://github.com/dengzhh/my-translator>
 
 ## 安装
 
 1. 打开 `chrome://extensions/`（Edge 为 `edge://extensions/`）
 2. 打开右上角 **开发者模式**
-3. 点 **加载已解压的扩展程序**，选择 **本目录（`quick-translate`）** —— 也就是这个 README 所在的文件夹
+3. 点 **加载已解压的扩展程序**，选择 **本目录** —— 也就是这个 README 所在的文件夹
 4. 装好先随便打开一个网页，点扩展图标 → **设置**，设置面板会**直接在网页里展开**（不会把你的页面导航走）
 
 > 设置在浮窗内部就地打开，当前看的网页不会被替换。面板里**没有任何会跳走网页的入口**，全部配置（接口、语言、测试、导入导出）都在浮窗内完成。
 >
-> 这套做法已抽成工作区规范：[../docs/SETTINGS-INLINE-PATTERN.md](../docs/SETTINGS-INLINE-PATTERN.md)，新插件的设置一律照此实现。
+> 设计说明见 [docs/SETTINGS-INLINE-PATTERN.md](./docs/SETTINGS-INLINE-PATTERN.md)，新插件的设置一律照此实现。
 
 ## 配置
 
@@ -81,10 +83,11 @@
 ```
 manifest.json              MV3 清单
 background/service-worker.js  翻译引擎（请求、缓存、权限、右键菜单）
-content/content.js        选区监听 + Shadow DOM 浮窗（样式内联、与页面隔离）
+content/content.js        选区监听 + Shadow DOM 浮窗（含浮窗内设置面板）
 lib/langs.js              语言表（content / options / popup 共用）
-options/                  设置页
+options/                  完整设置页（备用，平时用不到）
 popup/                    点图标弹出的小面板（开关、目标语言）
+docs/                     设置界面设计规范
 tools/gen-icons.mjs       图标生成脚本（纯 Node，无依赖）
 test/engine.test.mjs      引擎单测（vm + mock chrome/fetch，63 项）
 test/e2e.mjs              端到端测试（真实 Edge 无窗口 + 真实鼠标拖选，52 项，自带假接口）
