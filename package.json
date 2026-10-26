@@ -1,0 +1,19 @@
+{
+  "name": "quick-translate",
+  "version": "1.0.0",
+  "private": true,
+  "description": "我的翻译 —— 选中网页文本即在鼠标右上角弹出浮窗，一键调用你自己的翻译 API。",
+  "type": "module",
+  "scripts": {
+    "test": "node test/engine.test.mjs && node test/e2e.mjs",
+    "test:unit": "node test/engine.test.mjs",
+    "test:e2e": "node test/e2e.mjs",
+    "test:local": "node test/local-api.check.mjs && node test/local-e2e.check.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.40.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

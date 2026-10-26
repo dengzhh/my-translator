@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>我的翻译 · 设置</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="hd">
+      <div class="hd-title">
+        <span class="logo">译</span>
+        <div>
+          <h1>我的翻译</h1>
+          <p class="sub">选中页面文本 → 鼠标右上角弹出浮窗 → 点击即翻译</p>
+        </div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="enabled" />
+        <span>启用插件</span>
+      </label>
+    </header>
+
+    <section class="card">
+      <h2>1. 翻译接口</h2>
+      <div class="row">
+        <label for="provider">接口类型</label>
+        <select id="provider">
+          <option value="local">本地翻译服务（127.0.0.1:8090 —— 无需密钥，开箱即用）</option>
+          <option value="openai">OpenAI 兼容（支持智谱 / DeepSeek / 硅基流动 / 本地 Ollama 等）</option>
+          <option value="deepl">DeepL</option>
+          <option value="google">Google 翻译</option>
+          <option value="custom">自定义 HTTP 接口</option>
+        </select>
+      </div>
+
+      <!-- 本地翻译服务 -->
+      <div class="group" data-provider="local">
+        <div class="row">
+          <label for="localEndpoint">接口地址</label>
+          <input type="text" id="localEndpoint" placeholder="http://127.0.0.1:8090/api/v1/translate" />
+        </div>
+        <div class="row">
+          <label for="localEngine">翻译引擎</label>
+          <input type="text" id="localEngine" placeholder="baidu" class="narrow" />
+        </div>
+        <p class="hint">
+          调用 <code>POST /api/v1/translate</code>，参数 <code>q</code> / <code>from</code> / <code>to</code> /
+          <code>engine</code> / <code>detail</code>，读取返回里的 <code>translation</code> 字段。
+          语言代码由插件自动转换（如「日语」→ <code>jp</code>、「繁体中文」→ <code>cht</code>）。
+        </p>
+      </div>
+
+      <!-- OpenAI 兼容 -->
+      <div class="group hidden" data-provider="openai">
+        <div class="row">
+          <label for="preset">服务商预设</label>
+          <select id="preset">
+            <option value="">— 请选择以自动填充 —</option>
+            <option value="zhipu">智谱 GLM（glm-4-flash 免费）</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="siliconflow">硅基流动 SiliconFlow</option>
+            <option value="openai">OpenAI</option>
+            <option value="moonshot">Moonshot 月之暗面</option>
+            <option value="ollama">本地 Ollama</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="endpoint">接口地址</label>
+          <input type="text" id="endpoint" placeholder="https://open.bigmodel.cn/api/paas/v4/chat/completions" />
+        </div>
+        <div class="row">
+          <label for="apiKey">API Key</label>
+          <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off" />
+        </div>
+        <div class="row two">
+          <div>
+            <label for="model">模型</label>
+            <input type="text" id="model" placeholder="glm-4-flash" />
+          </div>
+          <div>
+            <label for="temperature">温度</label>
+            <input type="number" id="temperature" min="0" max="2" step="0.1" />
+          </div>
+        </div>
+        <div class="row col">
+          <label for="systemPrompt">系统提示词</label>
+          <textarea id="systemPrompt" rows="4"></textarea>
+          <p class="hint">可用变量：<code>{{target}}</code> 会被替换为目标语言名称。</p>
+        </div>
+      </div>
+
+      <!-- DeepL -->
+      <div class="group hidden" data-provider="deepl">
+        <div class="row">
+          <label for="deeplPlan">套餐</label>
+          <select id="deeplPlan">
+            <option value="free">DeepL API Free</option>
+            <option value="pro">DeepL API Pro</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="deeplKey">DeepL Auth Key</label>
+          <input type="password" id="deeplKey" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx" autocomplete="off" />
+        </div>
+      </div>
+
+      <!-- Google -->
+      <div class="group hidden" data-provider="google">
+        <div class="row">
+          <label for="googleKey">Google API Key</label>
+          <input type="password" id="googleKey" placeholder="AIza..." autocomplete="off" />
+        </div>
+        <p class="hint">需要在 Google Cloud 控制台启用 Cloud Translation API 并创建密钥。</p>
+      </div>
+
+      <!-- 自定义 -->
+      <div class="group hidden" data-provider="custom">
+        <div class="row two">
+          <div>
+            <label for="customMethod">方法</label>
+            <select id="customMethod">
+              <option value="POST">POST</option>
+              <option value="GET">GET</option>
+            </select>
+          </div>
+          <div>
+            <label for="customPath">取值路径</label>
+            <input type="text" id="customPath" placeholder="choices.0.message.content" />
+          </div>
+        </div>
+        <div class="row">
+          <label for="customEndpoint">接口地址</label>
+          <input type="text" id="customEndpoint" placeholder="https://example.com/translate" />
+        </div>
+        <div class="row col">
+          <label for="customHeaders">请求头（JSON）</label>
+          <textarea id="customHeaders" rows="3" spellcheck="false"></textarea>
+        </div>
+        <div class="row col">
+          <label for="customBody">请求体模板</label>
+          <textarea id="customBody" rows="6" spellcheck="false"></textarea>
+          <p class="hint">可用变量：<code>{{text}}</code>（已转义，直接放进 JSON 字符串安全）、<code>{{rawText}}</code>、<code>{{target}}</code>、<code>{{source}}</code>、<code>{{model}}</code>。</p>
+        </div>
+      </div>
+
+      <div class="row">
+        <span class="perm" id="permBox"></span>
+        <button class="btn ghost" id="btnPerm">授权该接口域名</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2. 语言与行为</h2>
+      <div class="row two">
+        <div>
+          <label for="targetLang">翻译目标语言</label>
+          <select id="targetLang"></select>
+        </div>
+        <div>
+          <label for="sourceLang">原文语言</label>
+          <select id="sourceLang">
+            <option value="auto">自动检测</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <label for="maxChars">单次最大字符数</label>
+        <input type="number" id="maxChars" min="200" max="20000" step="100" />
+      </div>
+      <div class="checks-row">
+        <label><input type="checkbox" id="showBubble" /> 选区后自动弹出浮窗</label>
+        <label><input type="checkbox" id="paused" /> 暂停自动弹出（临时关闭）</label>
+        <label><input type="checkbox" id="autoCopy" /> 翻译后自动复制到剪贴板</label>
+        <label><input type="checkbox" id="cacheEnabled" /> 启用译文缓存</label>
+      </div>
+      <p class="hint">快捷键：<kbd>Alt</kbd> + <kbd>T</kbd> 直接翻译当前选中文本；<kbd>Esc</kbd> 关闭浮窗；也可右键选择「用「我的翻译」翻译选中文本」。</p>
+    </section>
+
+    <section class="card">
+      <h2>3. 测试连通性</h2>
+      <div class="row col">
+        <textarea id="testText" rows="2" placeholder="在这里输入一段待翻译的文本…">Good tools make boring work valuable.</textarea>
+      </div>
+      <div class="row actions">
+        <button class="btn primary" id="btnTest">测试翻译</button>
+        <span class="result" id="testResult"></span>
+      </div>
+    </section>
+
+    <footer class="ft">
+      <button class="btn primary" id="btnSave">保存设置</button>
+      <button class="btn ghost" id="btnClearCache">清除缓存</button>
+      <button class="btn ghost" id="btnExport">导出配置</button>
+      <button class="btn ghost" id="btnImport">导入配置</button>
+      <input type="file" id="fileImport" accept="application/json" hidden />
+      <span class="saved" id="savedTip"></span>
+    </footer>
+  </div>
+
+  <script src="../lib/langs.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

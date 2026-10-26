@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="hd">
+    <span class="logo">译</span>
+    <div class="tt">
+      <strong>我的翻译</strong>
+      <span id="state">—</span>
+    </div>
+    <label class="sw"><input type="checkbox" id="enabled" /><span>启用</span></label>
+  </div>
+
+  <div class="line">
+    <label for="targetLang">目标语言</label>
+    <select id="targetLang"></select>
+  </div>
+
+  <div class="line">
+    <span class="state" id="pageState">检测中…</span>
+  </div>
+
+  <div class="line">
+    <span class="state" id="pauseState">划词浮窗：开启</span>
+    <button class="btn mini" id="btnPause">暂停</button>
+  </div>
+
+  <div class="acts">
+    <button class="btn primary" id="btnOptions">打开设置</button>
+    <button class="btn" id="btnInject" hidden>注入本页</button>
+  </div>
+
+  <div class="line">
+    <span class="meta" id="meta"></span>
+  </div>
+  <p class="tip">选中网页文本后，浮窗会出现在鼠标右上角；<kbd>Alt</kbd>+<kbd>T</kbd> 可直接翻译。</p>
+
+  <script src="../lib/langs.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
