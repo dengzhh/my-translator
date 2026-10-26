@@ -93,7 +93,7 @@ test/engine.test.mjs      引擎单测（vm + mock chrome/fetch，63 项）
 test/e2e.mjs              端到端测试（真实 Edge 无窗口 + 真实鼠标拖选，52 项，自带假接口）
 test/local-api.check.mjs  真机校验：直连 8090 验证 5 种语言
 test/local-e2e.check.mjs  真机校验：默认配置下完整走一遍
-test/artifacts/           测试截图
+test/artifacts/           测试截图（跑测试时自动生成，不入库）
 ```
 
 ## 测试
@@ -108,7 +108,7 @@ npm run test:e2e                 # 真实浏览器：选区→浮窗→翻译→
 npm run test:local               # 真机：直连 127.0.0.1:8090（服务没起会自动跳过）
 ```
 
-`e2e.mjs` 与两个真机脚本都用本机 Edge 的 `--headless=new`（无窗口，不抢焦点），截图输出到 `test/artifacts/`。
+`e2e.mjs` 与两个真机脚本都用本机 Edge 的 `--headless=new`（无窗口，不抢焦点），截图输出到 `test/artifacts/`（该目录不入库）。
 两个 `local-*` 脚本会在检测不到 8090 服务时自动跳过。
 
 非 Windows 或 Edge 装在别处时，可用环境变量覆盖：

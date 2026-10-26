@@ -2,7 +2,8 @@
 node_modules/
 package-lock.json
 
-# 测试产物（截图 09-* 等少量示例图保留在 test/artifacts，其余忽略）
+# 测试产物：每次跑测试都会重新生成，不入库（避免二进制 diff 噪声）
+test/artifacts/
 test/.tmp-profile/
 test/.tmp-profile-local/
 test/.tmp-ext/
