@@ -1,5 +1,5 @@
 {
-  "name": "quick-translate",
+  "name": "my-translator",
   "version": "1.0.0",
   "private": true,
   "description": "我的翻译 —— 选中网页文本即在鼠标右上角弹出浮窗，一键调用你自己的翻译 API。",
