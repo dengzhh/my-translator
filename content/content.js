@@ -793,6 +793,7 @@
 
   function hideSettings() {
     if (settings) settings.classList.add('qt-hidden');
+    disarmFocusGuard();
   }
 
   function hideAllPanelsExcept(keep) {
@@ -874,6 +875,7 @@
     if (panel) panel.classList.add('qt-hidden');
     if (settings) settings.classList.add('qt-hidden');
     state.result = '';
+    disarmFocusGuard();
   }
 
   function hideBubble() {
@@ -1119,6 +1121,102 @@
     if (e.key === 'Escape') return; // 交给全局 onKeyDown 处理：关设置 / 关面板
     if (!isInside(e)) return; // 页面自己的键盘输入不干预
     e.stopPropagation();
+    // 隔离拦不住「注册更早」的页面监听器，补一道焦点守卫：
+    // 用户在这个输入框里打字期间，焦点被抢走就抢回来
+    if (e.type === 'keydown') armFocusGuard(realTarget(e));
+  }
+
+  /**
+   * 取事件的真实目标。
+   * Shadow DOM 对外做 retargeting，e.target 会被替换成宿主 host（DIV），
+   * 所以判断「是不是在输入框里打字」必须看 composedPath()[0]，不能看 e.target。
+   * 实测：浮窗输入框里敲键，e.target 是 DIV，composedPath()[0] 才是 INPUT。
+   */
+  function realTarget(e) {
+    if (typeof e.composedPath === 'function') {
+      const p = e.composedPath();
+      if (p && p.length) return p[0];
+    }
+    return e.target;
+  }
+
+  /**
+   * 焦点守卫：window 捕获阶段拦不住「注册更早」的页面监听器。
+   *
+   * 实测证据（CDP + 真实扩展，Edge）：
+   *   页面若在插件之前注册 window 捕获 keydown，插件的 isolateKeys 排在它后面，
+   *   事件已经被页面拿去 focus 到它自己的搜索框 —— stopPropagation 只是「拦后面的人」，救不了前面。
+   *   实测 earlyCount=1、who=EARLY-WIN-CAP-FOCUSED，确认隔离失效。
+   *
+   * 因此补一道兜底：浮窗可见且用户正在里面打字时，一旦焦点被页面抢走，立刻抢回，
+   * 并清掉抢焦点那个输入框（如 GitHub 搜索框）里刚被塞进去的字符。
+   */
+  let guardInput = null;   // 被守卫的输入框
+  let guarding = false;
+  let guardTimer = 0;
+
+  function isTypingField(el) {
+    if (!el) return false;
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable === true;
+  }
+
+  function restoreFocus() {
+    if (!guardInput || !guardInput.isConnected) return;
+    const sr = host && host.shadowRoot;
+    if (sr && sr.activeElement === guardInput) return; // 已经回来了
+    try {
+      guardInput.focus({ preventScroll: true });
+    } catch (e) {
+      guardInput.focus();
+    }
+  }
+
+  function onFocusStolen(e) {
+    if (!guarding || !guardInput || !guardInput.isConnected) return;
+    const t = e.target;
+    // 焦点还在浮窗内 → 正常
+    if (t === host || (host && host.contains(t))) return;
+    if (host && host.shadowRoot && host.shadowRoot.contains(t)) return;
+    // 焦点跑到页面上了：清掉页面输入框里可能被塞进去的字符
+    if (isTypingField(t) && t !== guardInput) {
+      clearStolenField(t);
+    }
+    // 下一拍抢回，避免和页面自己的 focus 逻辑打架
+    clearTimeout(guardTimer);
+    guardTimer = setTimeout(() => {
+      restoreFocus();
+      // 抢回后再清一次：字符可能在 focus 之后才被写进页面输入框
+      if (isTypingField(t) && t !== guardInput) clearStolenField(t);
+    }, 0);
+  }
+
+  /** 清掉被抢焦点那个输入框里刚被塞进去的字符（只清短的，避免误删用户真实内容） */
+  function clearStolenField(el) {
+    try {
+      const v = el.value;
+      if (typeof v === 'string' && v.length > 0 && v.length <= 8) {
+        el.value = '';
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    } catch (err) {}
+  }
+
+  /** 用户开始在某输入框打字时启动守卫 */
+  function armFocusGuard(el) {
+    if (!el || el === guardInput) return;
+    guardInput = el;
+    if (guarding) return;
+    guarding = true;
+    document.addEventListener('focusin', onFocusStolen, true);
+  }
+
+  function disarmFocusGuard() {
+    guardInput = null;
+    if (!guarding) return;
+    guarding = false;
+    document.removeEventListener('focusin', onFocusStolen, true);
+    clearTimeout(guardTimer);
   }
 
   function selectedText() {
