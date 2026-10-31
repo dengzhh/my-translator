@@ -4,28 +4,41 @@
  * 全部 UI 挂在 Shadow DOM 下，样式与页面完全隔离。
  */
 (function () {
+  // 版本戳：改了代码后在页面控制台能看到，用来确认标签页跑的是新注入的脚本。
+  const QT_VER = '1.0.4';
+  try { console.info('[quick-translate] content script v' + QT_VER + ' injected'); } catch (e) {}
+
   // ── 实例接管 ──────────────────────────────────────────────────────────────
-  // 扩展重载后，页面里的旧实例有可能还活着：它的 chrome.* API 全部失效，
-  // 但 window.__QT_LOADED__ 仍是 true，于是新注入的脚本一进来就 return，
-  // 页面变成「划词没浮窗、设置没反应」的双死状态（用户实测踩到过两次）。
-  // 解决办法：新实例先开火，把旧实例标记为过期（它的所有全局处理器立刻哑掉），
-  // 再清掉它留在 DOM 里的宿主节点，然后自己正常初始化。
+  // 扩展重载后，页面里的旧实例有可能还活着（chrome.* API 已失效），
+  // 但 window.__QT_LOADED__ 仍是 true。若新脚本见到它就 return，页面会变成
+  // 「划词没浮窗、设置打不开」的双死状态。
+  //
+  // 🔴 关键教训（真实踩坑）：旧版本脚本**没有** __QT_UNLOAD__。
+  // 上一版只在能调到这个函数时才清理，却仍然无条件清掉了宿主的 DOM，
+  // 结果旧实例的 UI 被抹掉、自己还活着，新实例又被标记挡回 —— 比不修还糟。
+  // 所以现在改成：只有「同版本且健康」才跳过，其余情况一律无条件接管。
+  const sameVersionAlive =
+    window.__QT_LOADED__ === true &&
+    window.__QT_VER__ === QT_VER &&
+    typeof window.__QT_UNLOAD__ === 'function';
+  if (sameVersionAlive) return; // 同版本的健康实例，不重复初始化（保持幂等）
+
+  // 让旧实例让位：能调 UNLOAD 就调，不能（旧版本）就只清 DOM
   try {
     if (typeof window.__QT_UNLOAD__ === 'function') window.__QT_UNLOAD__();
   } catch (e) {}
   try {
-    // 跨 world 时调用不到上面的函数，直接按 id 清残留宿主
+    // 跨 isolated world 时调不到上面的函数，直接按 id 清残留宿主
     document.querySelectorAll('#quick-translate-host').forEach((n) => n.remove());
   } catch (e) {}
-  if (window.__QT_LOADED__) return;
+  // 无条件清标记：旧版本不会替我们清，留着它新实例就永远起不来
+  window.__QT_LOADED__ = false;
+  window.__QT_VER__ = QT_VER; // 供后来者判断是否需要接管
 
   // 本实例的代号：只要 __QT_KILLED__ 被后来者递增，本实例的处理器全部失效
   const QT_KILLED_AT = window.__QT_KILLED__ || 0;
   const QT_ALIVE = () => (window.__QT_KILLED__ || 0) === QT_KILLED_AT;
 
-  // 版本戳：改了代码后在页面控制台能看到，用来确认标签页跑的是新注入的脚本。
-  const QT_VER = '1.0.3';
-  try { console.info('[quick-translate] content script v' + QT_VER + ' injected'); } catch (e) {}
 
   const LANGS = window.QT_LANGS || [['zh-CN', '简体中文'], ['en', '英语']];
   const langName = window.QT_langName || ((c) => c);
@@ -240,6 +253,16 @@
   /* ============ DOM 初始化 ============ */
   function ensureHost() {
     if (host) return;
+    try {
+      buildHost();
+    } catch (err) {
+      // 建不出来就明确报错，避免「划词毫无反应」这种无声失败
+      try { console.error('[quick-translate] 浮窗初始化失败:', err); } catch (_) {}
+      throw err;
+    }
+  }
+
+  function buildHost() {
     // 宿主必须是支持 attachShadow 的元素（textarea 不支持，实测抛 NotSupportedError），
     // 所以仍用 div。但额外加 contenteditable：站点（GitHub/知乎/B站）的单键快捷键会先判断
     // 「用户是不是正在输入」，依据是 e.target.tagName 或 document.activeElement。
