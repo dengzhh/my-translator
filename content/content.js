@@ -5,7 +5,7 @@
  */
 (function () {
   // 版本戳：改了代码后在页面控制台能看到，用来确认标签页跑的是新注入的脚本。
-  const QT_VER = '1.0.5';
+  const QT_VER = '1.0.6';
   try { console.info('[quick-translate] content script v' + QT_VER + ' injected'); } catch (e) {}
 
   // ── 实例接管 ──────────────────────────────────────────────────────────────
@@ -75,6 +75,10 @@
   --qt-accent-fg: #ffffff;
   --qt-hover: #f3f4f6;
   --qt-shadow: 0 8px 28px rgba(15, 23, 42, .18), 0 2px 6px rgba(15, 23, 42, .08);
+  /* 宿主为了藏掉自己的插入符设了 caret-color:transparent，而 caret-color 是
+     继承属性，会一路继承进 Shadow DOM —— 输入框里的光标直接变透明，看不见了。
+     必须在最外层显式恢复，auto 表示跟随 color。 */
+  caret-color: auto;
 }
 @media (prefers-color-scheme: dark) {
   .qt-root {
@@ -135,7 +139,18 @@
   cursor: move; user-select: none;
 }
 .qt-title { font-size: 12px; font-weight: 600; color: var(--qt-muted); margin-right: auto; padding-left: 2px; }
-.qt-body { padding: 12px 14px; overflow: auto; max-height: 300px; }
+.qt-body {
+  padding: 12px 14px; overflow: auto; max-height: 300px;
+  /* 🔴 必须 flex 化：body 的内容是 innerHTML 模板，标签之间的换行缩进会留下
+     纯空白文本节点。在 block 流里每个空白节点都会生成一个 line-height 行盒，
+     实测设置面板凭空多出 187px 空白（551.95 → 364.78）、结果面板多出 176px，
+     卡片高度几乎翻倍，看上去就是一大片空白。
+     flex 容器按规范忽略纯空白文本节点，幽灵行盒彻底消失。 */
+  display: flex;
+  flex-direction: column;
+}
+/* 内容超高时靠 overflow 滚动，别让 flex 把子元素（尤其是长译文）压扁 */
+.qt-body > * { flex: none; }
 .qt-result { white-space: pre-wrap; word-break: break-word; font-size: 14px; line-height: 1.75; }
 .qt-status { display: flex; align-items: center; gap: 8px; color: var(--qt-muted); font-size: 13px; padding: 4px 0; }
 .qt-dot {
@@ -196,6 +211,8 @@
 .qt-tab.on { background: var(--qt-accent); color: var(--qt-accent-fg); }
 .qt-pane { display: none; flex-direction: column; gap: 8px; }
 .qt-pane.on { display: flex; }
+/* 分组容器也要 flex，否则组内字段之间的间距跟组外不一致（缩进无行盒后仍要统一 8px） */
+.qt-pane > [data-group] { display: flex; flex-direction: column; gap: 8px; }
 .qt-f { display: flex; align-items: center; gap: 8px; }
 .qt-f > .qt-fl { width: 68px; flex: none; font-size: 12px; color: var(--qt-muted); }
 .qt-f > input[type="text"], .qt-f > input[type="password"], .qt-f > input[type="number"],
@@ -310,7 +327,26 @@
     root.appendChild(settings);
     root.appendChild(toast);
 
+    // 🔴 必须清掉模板缩进留下的纯空白文本节点。
+    // innerHTML 里标签之间换行缩进会变成 #text 节点，只要所在容器是 block
+    // （body、group=xxx 这些 div），每个空白节点就生成一个 line-height 行盒：
+    // 实测设置面板凭空高 187px、结果面板高 176px，字段之间也各多出 30px 空隙，
+    // 看上去就是「版面一大片空白」。flex 容器会忽略空白节点，但只要有任意
+    // 一层容器是 block 就会复发，所以这里从根上删干净，不再依赖每层 display。
+    stripBlankText(root);
+
     (document.body || document.documentElement).appendChild(host);
+  }
+
+  /** 递归删除纯空白文本节点（元素与注释保留） */
+  function stripBlankText(node) {
+    for (const n of [...node.childNodes]) {
+      if (n.nodeType === 3) {
+        if (!n.nodeValue.trim()) n.remove();
+      } else if (n.nodeType === 1) {
+        stripBlankText(n);
+      }
+    }
   }
 
   function langOptions(selected) {
