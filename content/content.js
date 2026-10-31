@@ -329,6 +329,7 @@
         startTranslate(true);
       }
     });
+    // 键盘隔离由 window 捕获阶段的 isolateKeys 统一处理（见 bindEvents）
     makeDraggable(el);
     return el;
   }
@@ -476,6 +477,7 @@
       if (btn.dataset.tab) switchTab(btn.dataset.tab);
       else onSettingsAct(btn.dataset.act, btn);
     });
+    // 键盘隔离由 window 捕获阶段的 isolateKeys 统一处理（见 bindEvents）
     el.addEventListener('change', (e) => {
       const t = e.target;
       if (t.dataset.k === 'provider') applySettingsProvider(true);
@@ -1104,6 +1106,21 @@
     return e.target === host || (e.target && host.contains(e.target));
   }
 
+  /**
+   * 键盘隔离：插件浮层盖在页面上，但事件仍会走到宿主页面。
+   * GitHub 的 s、/ 是单键快捷键，一旦被它们的 document 监听器收到就会把焦点抢到搜索框，
+   * 浮窗还在却打不了字。
+   *
+   * 实测结论（必须记住）：捕获阶段 document 的监听器**先于** Shadow DOM 内部元素执行，
+   * 所以只在面板内部 stopPropagation 是无效的。必须在 window 捕获阶段抢先拦，
+   * 用 composedPath() 穿透 shadow 判断事件源是否在浮窗内。
+   */
+  function isolateKeys(e) {
+    if (e.key === 'Escape') return; // 交给全局 onKeyDown 处理：关设置 / 关面板
+    if (!isInside(e)) return; // 页面自己的键盘输入不干预
+    e.stopPropagation();
+  }
+
   function selectedText() {
     const el = document.activeElement;
     if (el && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && typeof el.value === 'string'))) {
@@ -1141,6 +1158,9 @@
   }
 
   function onKeyDown(e) {
+    // 焦点在插件浮窗内：只处理 Esc（关设置 / 关面板），
+    // 其余快捷键已由 isolateKeys 挡在浮层里，不在此重复处理
+    if (isInside(e) && e.key !== 'Escape') return;
     if (e.key === 'Escape') {
       if (settings && !settings.classList.contains('qt-hidden')) {
         hideSettings();
@@ -1233,6 +1253,11 @@
     document.addEventListener('mouseup', onMouseUp, true);
     document.addEventListener('mousedown', onExternalDown, true);
     document.addEventListener('keydown', onKeyDown, true);
+    // 键盘隔离必须在 window 捕获阶段：它比页面 document 的捕获监听器更早，
+    // 否则 GitHub 的 s、/ 单键快捷键会先把焦点抢走（实测结论，勿随意挪位置）
+    window.addEventListener('keydown', isolateKeys, true);
+    window.addEventListener('keypress', isolateKeys, true);
+    window.addEventListener('keyup', isolateKeys, true);
     window.addEventListener('scroll', onScrollOrResize, true);
     window.addEventListener('resize', onScrollOrResize);
   }
