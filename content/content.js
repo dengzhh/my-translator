@@ -7,6 +7,11 @@
   // 已注入过就退出。注意标记放在最后：初始化中途万一抛错，重新注入还能自愈
   if (window.__QT_LOADED__) return;
 
+  // 版本戳：改了代码后在页面控制台能看到，用来确认标签页跑的是新注入的脚本。
+  // 扩展「重新加载」不会重新注入已打开标签页的内容脚本，必须刷新页面。
+  const QT_VER = '1.0.2';
+  try { console.info('[quick-translate] content script v' + QT_VER + ' injected'); } catch (e) {}
+
   const LANGS = window.QT_LANGS || [['zh-CN', '简体中文'], ['en', '英语']];
   const langName = window.QT_langName || ((c) => c);
 
@@ -220,9 +225,22 @@
   /* ============ DOM 初始化 ============ */
   function ensureHost() {
     if (host) return;
+    // 宿主必须是支持 attachShadow 的元素（textarea 不支持，实测抛 NotSupportedError），
+    // 所以仍用 div。但额外加 contenteditable：站点（GitHub/知乎/B站）的单键快捷键会先判断
+    // 「用户是不是正在输入」，依据是 e.target.tagName 或 document.activeElement。
+    // Shadow DOM 会把事件 target 重定向成宿主，宿主若是普通 div 就会被判定为「没在输入」，
+    // 于是站点抢走焦点、弹出自己的搜索框，浮窗还在却打不了字。
+    // 宿主带 contenteditable 时，activeElement.isContentEditable 为 true，
+    // 这两种判断都会认为用户正在输入，站点快捷键不再触发。
     host = document.createElement('div');
     host.id = 'quick-translate-host';
-    host.style.cssText = 'all:initial;position:fixed;left:0;top:0;width:0;height:0;z-index:2147483647;';
+    host.setAttribute('contenteditable', 'plaintext-only');
+    host.setAttribute('tabindex', '-1');
+    host.setAttribute('spellcheck', 'false');
+    host.setAttribute('aria-hidden', 'true');
+    host.style.cssText =
+      'all:initial;position:fixed;left:0;top:0;width:0;height:0;overflow:hidden;opacity:0;' +
+      'z-index:2147483647;';
     shadow = host.attachShadow({ mode: 'open' });
     // 优先用 adoptedStyleSheets：不受页面 CSP 对 <style> 的限制
     try {
@@ -780,7 +798,25 @@
       const sel = sEl('[data-k="targetLang"]');
       if (sel) sel.value = state.target;
       updatePermState();
+      // 打开即把焦点送进第一个输入框：焦点若留在页面上，站点的单键快捷键
+      // （GitHub 的 s、知乎/B站的 /）仍会因为「当前没在输入」而抢走焦点
+      focusFirstField(true);
     });
+  }
+
+  /** 把焦点放进设置面板的第一个文本输入框 */
+  function focusFirstField(arm) {
+    if (!settings || settings.classList.contains('qt-hidden')) return;
+    const inps = [...settings.querySelectorAll('input,textarea')]
+      .filter((n) => n.type !== 'file' && n.type !== 'checkbox' && n.type !== 'radio' && n.getClientRects().length);
+    const el = inps[0];
+    if (!el) return;
+    try {
+      el.focus({ preventScroll: true });
+    } catch (e) {
+      el.focus();
+    }
+    if (arm) armFocusGuard(el);
   }
 
   function refreshRawConfig(cb) {
