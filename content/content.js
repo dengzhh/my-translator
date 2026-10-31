@@ -5,7 +5,7 @@
  */
 (function () {
   // 版本戳：改了代码后在页面控制台能看到，用来确认标签页跑的是新注入的脚本。
-  const QT_VER = '1.0.4';
+  const QT_VER = '1.0.5';
   try { console.info('[quick-translate] content script v' + QT_VER + ' injected'); } catch (e) {}
 
   // ── 实例接管 ──────────────────────────────────────────────────────────────
@@ -276,9 +276,15 @@
     host.setAttribute('tabindex', '-1');
     host.setAttribute('spellcheck', 'false');
     host.setAttribute('aria-hidden', 'true');
+    // 🔴 宿主样式绝对不能再加 opacity:<1 或 overflow:hidden（曾经的严重 bug）：
+    // 浮窗卡片是 position:fixed，靠脱离宿主盒子来画在页面上。
+    // 一旦宿主有 opacity<1，它就成为 fixed 子元素的包含块；再叠加 overflow:hidden 与 0×0 尺寸，
+    // 卡片会被整块裁掉 —— DOM 里 display:flex、尺寸 420×549 一切正常，屏幕上却什么都没有，
+    // 表现为「点开设置没反应」「划词不出浮窗」，而内容脚本本身完全健康。
+    // 因此宿主只保留 0×0 + fixed，不裁剪、不透明，让卡片自己浮在视口上。
     host.style.cssText =
-      'all:initial;position:fixed;left:0;top:0;width:0;height:0;overflow:hidden;opacity:0;' +
-      'z-index:2147483647;';
+      'all:initial;position:fixed;left:0;top:0;width:0;height:0;' +
+      'z-index:2147483647;caret-color:transparent;';
     shadow = host.attachShadow({ mode: 'open' });
     // 优先用 adoptedStyleSheets：不受页面 CSP 对 <style> 的限制
     try {
@@ -1369,6 +1375,10 @@
   function onExternalDown(e) {
     if (!QT_ALIVE()) return;
     if (isInside(e)) return;
+    // 用户主动点页面了：解除焦点守卫，否则它会把焦点硬抢回设置面板的输入框，
+    // 用户既选不中文字（选区被抢焦点打断），也点不动页面上的其它控件。
+    // 重新回到浮窗输入框打字时，isolateKeys 会自动重新武装。
+    disarmFocusGuard();
     hideBubble(); // 面板保留，方便继续阅读/复制
   }
 
