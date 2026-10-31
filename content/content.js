@@ -4,12 +4,27 @@
  * 全部 UI 挂在 Shadow DOM 下，样式与页面完全隔离。
  */
 (function () {
-  // 已注入过就退出。注意标记放在最后：初始化中途万一抛错，重新注入还能自愈
+  // ── 实例接管 ──────────────────────────────────────────────────────────────
+  // 扩展重载后，页面里的旧实例有可能还活着：它的 chrome.* API 全部失效，
+  // 但 window.__QT_LOADED__ 仍是 true，于是新注入的脚本一进来就 return，
+  // 页面变成「划词没浮窗、设置没反应」的双死状态（用户实测踩到过两次）。
+  // 解决办法：新实例先开火，把旧实例标记为过期（它的所有全局处理器立刻哑掉），
+  // 再清掉它留在 DOM 里的宿主节点，然后自己正常初始化。
+  try {
+    if (typeof window.__QT_UNLOAD__ === 'function') window.__QT_UNLOAD__();
+  } catch (e) {}
+  try {
+    // 跨 world 时调用不到上面的函数，直接按 id 清残留宿主
+    document.querySelectorAll('#quick-translate-host').forEach((n) => n.remove());
+  } catch (e) {}
   if (window.__QT_LOADED__) return;
 
+  // 本实例的代号：只要 __QT_KILLED__ 被后来者递增，本实例的处理器全部失效
+  const QT_KILLED_AT = window.__QT_KILLED__ || 0;
+  const QT_ALIVE = () => (window.__QT_KILLED__ || 0) === QT_KILLED_AT;
+
   // 版本戳：改了代码后在页面控制台能看到，用来确认标签页跑的是新注入的脚本。
-  // 扩展「重新加载」不会重新注入已打开标签页的内容脚本，必须刷新页面。
-  const QT_VER = '1.0.2';
+  const QT_VER = '1.0.3';
   try { console.info('[quick-translate] content script v' + QT_VER + ' injected'); } catch (e) {}
 
   const LANGS = window.QT_LANGS || [['zh-CN', '简体中文'], ['en', '英语']];
@@ -1154,6 +1169,7 @@
    * 用 composedPath() 穿透 shadow 判断事件源是否在浮窗内。
    */
   function isolateKeys(e) {
+    if (!QT_ALIVE()) return; // 已被新注入的实例接管
     if (e.key === 'Escape') return; // 交给全局 onKeyDown 处理：关设置 / 关面板
     if (!isInside(e)) return; // 页面自己的键盘输入不干预
     e.stopPropagation();
@@ -1209,6 +1225,7 @@
   }
 
   function onFocusStolen(e) {
+    if (!QT_ALIVE()) return;
     if (!guarding || !guardInput || !guardInput.isConnected) return;
     const t = e.target;
     // 焦点还在浮窗内 → 正常
@@ -1273,6 +1290,7 @@
   }
 
   function onMouseUp(e) {
+    if (!QT_ALIVE()) return; // 已被新注入的实例接管
     if (!cfg.enabled) return;
     if (cfg.paused) {
       hideBubble();
@@ -1292,6 +1310,7 @@
   }
 
   function onKeyDown(e) {
+    if (!QT_ALIVE()) return; // 已被新注入的实例接管
     // 焦点在插件浮窗内：只处理 Esc（关设置 / 关面板），
     // 其余快捷键已由 isolateKeys 挡在浮层里，不在此重复处理
     if (isInside(e) && e.key !== 'Escape') return;
@@ -1325,11 +1344,13 @@
   }
 
   function onExternalDown(e) {
+    if (!QT_ALIVE()) return;
     if (isInside(e)) return;
     hideBubble(); // 面板保留，方便继续阅读/复制
   }
 
   function onScrollOrResize() {
+    if (!QT_ALIVE()) return;
     if (!host) return;
     if (!state.follow) return;
     const bVisible = bubble && !bubble.classList.contains('qt-hidden');
@@ -1400,6 +1421,24 @@
   refreshConfig();
   window.__QT_LOADED__ = true;
 
+  /**
+   * 卸载本实例。由后来注入的实例调用（扩展重载后页面里的旧实例必须让位）：
+   * 递增 __QT_KILLED__ 让所有全局处理器立刻失效，移除宿主，并清掉加载标记，
+   * 使新实例得以正常初始化。
+   */
+  window.__QT_UNLOAD__ = function () {
+    window.__QT_KILLED__ = (window.__QT_KILLED__ || 0) + 1;
+    try {
+      if (host) host.remove();
+    } catch (e) {}
+    host = null;
+    shadow = null;
+    bubble = null;
+    panel = null;
+    settings = null;
+    window.__QT_LOADED__ = false;
+  };
+
   chrome.storage &&
     chrome.storage.onChanged &&
     chrome.storage.onChanged.addListener((changes, area) => {
@@ -1415,6 +1454,7 @@
   chrome.runtime &&
     chrome.runtime.onMessage &&
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+      if (!QT_ALIVE()) return; // 已被新注入的实例接管，不再抢答
       if (!msg) return;
       // 供 popup 探测本页是否已注入
       if (msg.type === 'qt:ping') {
